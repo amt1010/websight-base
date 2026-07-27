@@ -143,7 +143,7 @@ function MindMap({nodes}){
   const[sc,setSc]=useState(1);const[off,setOff]=useState({x:0,y:0});
   const[hov,setHov]=useState(null);const[hovPx,setHovPx]=useState({x:0,y:0});
   const drag=useRef(false),last=useRef({x:0,y:0});
-  const W=620,H=340;const{pos,root,L1}=computePos(nodes,W,H);
+  const W=620,H=340;const{pos,L1}=computePos(nodes,W,H);
   function colOf(n){if(!n.parent)return"#F1F0FF";const i=L1.findIndex(l=>l.id===n.id||l.id===n.parent);return NODE_COLS[Math.abs(i)%NODE_COLS.length];}
   function rOf(n){return!n.parent?30:nodes.some(c=>c.parent===n.id)?20:13;}
   const onWheel=useCallback(e=>{e.preventDefault();setSc(s=>Math.min(3,Math.max(.3,s*(e.deltaY<0?1.1:.91))));},[]);
@@ -600,7 +600,7 @@ function XRayTab() {
   }, []);
 
   function renderLayer(layerNum) {
-    const {type, content, lang} = getLayerContent(page, layerNum);
+    const {type, content} = getLayerContent(page, layerNum);
     const layerColor = LAYER_META[layerNum - 1].color;
     if (type === "visual") { const C = content; return <C />; }
     if (type === "code" || type === "api" || type === "data") {
@@ -713,7 +713,7 @@ function XRayTab() {
               bswhealth.com{XRAY_PAGES.find(p=>p.id===page)?.path}
             </div>
             <div style={{display:"flex",gap:6,alignItems:"center"}}>
-              <span style={{fontSize:10,color:T.text2,fontFamily:T.body,background:`rgba(${hex2rgb(LAYER_META[activeLayer-1].color)},0.15)`,padding:"2px 8px",borderRadius:4,border:`1px solid rgba(${hex2rgb(LAYER_META[activeLayer-1].color)},0.3)`,color:LAYER_META[activeLayer-1].color}}>
+              <span style={{fontSize:10,fontFamily:T.body,background:`rgba(${hex2rgb(LAYER_META[activeLayer-1].color)},0.15)`,padding:"2px 8px",borderRadius:4,border:`1px solid rgba(${hex2rgb(LAYER_META[activeLayer-1].color)},0.3)`,color:LAYER_META[activeLayer-1].color}}>
                 Layer {activeLayer}
               </span>
             </div>
@@ -947,7 +947,7 @@ function APIsTab({data}){
   );
 }
 
-function ExportTab({data}){
+function ExportTab(){
   const exports=[{icon:"⬇",label:"PDF Discovery Report",desc:"Full analysis + X-ray views for client delivery",badge:"PDF",color:T.accent},{icon:"⬇",label:"CSV — URL inventory",desc:"All pages, templates, and sitemap sections",badge:"CSV",color:T.cyan},{icon:"⬇",label:"JSON — raw analysis",desc:"Machine-readable output for downstream tools",badge:"JSON",color:T.violet},{icon:"⬇",label:"Figma sitemap kit",desc:"Mind map as Figma-compatible JSON",badge:"Figma",color:T.green}];
   return(
     <div style={{display:"flex",flexDirection:"column",gap:12}}>
@@ -979,6 +979,21 @@ export default function App(){
   const[loading,setLoading]=useState(false);
   const[step,setStep]=useState(0);
 
+  useEffect(()=>{
+    if(!loading)return;
+    const id=setInterval(()=>{
+      setStep(s=>{
+        if(s>=STEP_LABELS.length-1){
+          clearInterval(id);
+          setTimeout(()=>setLoading(false),400);
+          return s;
+        }
+        return s+1;
+      });
+    },500);
+    return()=>clearInterval(id);
+  },[loading]);
+
   const tabContent=()=>{
     if(loading)return(
       <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:400,gap:20}}>
@@ -995,7 +1010,7 @@ export default function App(){
       case"templates": return<TemplatesTab data={data}/>;
       case"xray": return<XRayTab/>;
       case"apis": return<APIsTab data={data}/>;
-      case"export": return<ExportTab data={data}/>;
+      case"export": return<ExportTab/>;
       default: return<OverviewTab data={data}/>;
     }
   };
@@ -1010,7 +1025,7 @@ export default function App(){
             <div style={{background:T.bg1,borderBottom:`1px solid ${T.border}`,padding:"10px 20px",display:"flex",gap:10,alignItems:"center"}}>
               <span style={{fontSize:14,color:T.text2}}>🌐</span>
               <input value={url} onChange={e=>setUrl(e.target.value)} placeholder="https://example.com" style={{flex:1,background:T.bg2,border:`1px solid ${T.border}`,borderRadius:8,padding:"8px 14px",fontSize:13,color:T.text0,fontFamily:T.mono,outline:"none"}}/>
-              <button style={{padding:"8px 22px",background:`linear-gradient(135deg,${T.accent},${T.violet})`,border:"none",borderRadius:8,color:"#fff",fontSize:13,fontFamily:T.sans,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",letterSpacing:".2px"}}>Analyze ↗</button>
+              <button onClick={()=>{setStep(0);setLoading(true);}} disabled={loading} style={{padding:"8px 22px",background:`linear-gradient(135deg,${T.accent},${T.violet})`,border:"none",borderRadius:8,color:"#fff",fontSize:13,fontFamily:T.sans,fontWeight:600,cursor:loading?"default":"pointer",whiteSpace:"nowrap",letterSpacing:".2px",opacity:loading?0.6:1}}>Analyze ↗</button>
             </div>
             <div style={{flex:1,overflowY:"auto",padding:"18px 20px"}}>{tabContent()}</div>
           </div>
