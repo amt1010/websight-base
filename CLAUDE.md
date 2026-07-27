@@ -10,15 +10,16 @@ third-party APIs, layered X-ray view) for a fake crawl of a healthcare site.
 
 **There is no backend, no crawler, no database, and no live data.** Every
 number and screenshot description on screen comes from one hardcoded object
-(`BSW` in `src/App.jsx`). Do not assume any API call, fetch, or persistence
-layer exists unless you've just added it yourself. See `ROADMAP.md` for the
-plan to make this real.
+(`BSW` in `src/lib/mockData.js`). Do not assume any API call, fetch, or
+persistence layer exists unless you've just added it yourself. See
+`ROADMAP.md` for the plan to make this real.
 
 ## Stack
 
 - React 19 + Vite 8, plain JSX (no TypeScript — `@types/react` is present only
   for editor intellisense, nothing is type-checked)
 - ESLint 10, flat config in `eslint.config.js` (`react-hooks`, `react-refresh`)
+- Vitest + React Testing Library + jsdom for tests
 - Plain CSS + inline style objects. No Tailwind, no CSS-in-JS library.
 - npm (`package-lock.json` is committed)
 
@@ -30,32 +31,42 @@ npm run dev       # start Vite dev server (default port 5173)
 npm run build     # production build to dist/
 npm run preview   # serve the production build locally
 npm run lint      # eslint .
+npm run test      # vitest run
 ```
-
-There is **no test command** — no test framework is configured yet (Phase 1
-of `ROADMAP.md`). Don't assume `npm test` works.
 
 ## Architecture
 
-Almost the entire app lives in `src/App.jsx` (~1000 lines):
+The app is componentized under `src/`:
 
-- `T` — the design-token object (colors, fonts) used everywhere via inline
+- `src/lib/theme.js` — the `T` design-token object (colors, fonts) and small
+  helpers (`hex2rgb`, `pct`, `fmt`, `trunc`), used everywhere via inline
   `style={{...}}` props, not CSS classes.
-- `Badge`, `Chip` — small shared UI atoms defined at the top of the file.
-- `BSW` — the hardcoded mock dataset: domain metadata, sitemap `nodes`,
-  page `templates` (each with an X-ray `layers` array), detected `apis`, etc.
-  This is the thing a real backend will eventually replace.
-- The rest of the file is the tabbed dashboard itself (Overview, Sitemap,
-  Templates, X-Ray, APIs, Export tabs) reading from `BSW`.
+- `src/lib/mockData.js` — the hardcoded `BSW` mock dataset: domain metadata,
+  sitemap `nodes`, page `templates` (each with an X-ray `layers` array),
+  detected `apis`, etc. This is the thing a real backend will eventually
+  replace.
+- `src/lib/xrayContent.jsx` — the fake per-page-type visual/HTML/CSS/API/data
+  layer content used by the X-Ray tab.
+- `src/components/ui/` — shared atoms (`Badge`, `Chip`).
+- `src/components/` — `Sidebar`, `MindMap`, `XRayTab`, `Fonts`.
+- `src/components/tabs/` — one file per dashboard tab: `OverviewTab`,
+  `SitemapTab`, `TemplatesTab` (+ `StackedPreview`), `APIsTab`, `ExportTab`.
+- `src/App.jsx` — just the root component: tab switching, the fake
+  analyze/loading sequence, and composing the pieces above.
+- `*.test.jsx` files sit next to the component they test (e.g.
+  `src/components/Sidebar.test.jsx`). `src/test/setup.js` wires up
+  `@testing-library/jest-dom` matchers and RTL's `cleanup` between tests.
 
 `src/main.jsx` just mounts `<App/>`. `index.html` is the Vite entry point.
 
 ## Conventions
 
 - Keep new UI consistent with the existing inline-style + `T` token approach
-  unless you're doing the Phase 1 componentization/styling overhaul from
-  `ROADMAP.md` — don't introduce a second styling system ad hoc.
-- Run `npm run lint` before considering frontend changes done.
+  — don't introduce a second styling system ad hoc.
+- One component per file under `src/components/`; shared data/logic goes in
+  `src/lib/`, not inline in a component.
+- Run `npm run lint` and `npm run test` before considering frontend changes
+  done.
 - If you add real data fetching, backend calls, or new dependencies, update
   this file and `ROADMAP.md` so future sessions don't work from stale
   assumptions.
