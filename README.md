@@ -5,8 +5,8 @@ templates, and every third-party API quietly hydrating those pages at load
 time (booking widgets, maps, CRM data, whatever).
 
 **Right now, none of that is real.** This repo is a UI shell. Open it up and
-you're looking at one hardcoded object (`BSW` in `src/App.jsx`) pretending to
-be a crawl of a healthcare site — 12,000 pages, five templates, four
+you're looking at one hardcoded object (`BSW` in `src/lib/mockData.js`)
+pretending to be a crawl of a healthcare site — 12,000 pages, five templates, four
 third-party APIs, all made up. There is no crawler, no backend, no database.
 It exists so the *idea* of the product — what a "website X-ray" should feel
 like to look at — can be judged before a single line of scraping code gets
@@ -25,8 +25,8 @@ That's it. Opens on `localhost:5173`. `npm run build` produces a static
 
 ## What's actually here
 
-- One big component (`src/App.jsx`) with a tab bar: Overview, Sitemap,
-  Templates, X-Ray, APIs, Export.
+- `App.jsx` is just a tab bar over six components under `src/components/tabs/`:
+  Overview, Sitemap, Templates, X-Ray, APIs, Export.
 - A design-token object (`T`) and two shared atoms (`Badge`, `Chip`) — no
   Tailwind, no component library, just inline styles.
 - The X-Ray tab is the interesting part: it takes a page template and

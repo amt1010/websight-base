@@ -13,16 +13,18 @@ Get the current build live so it's shareable, before touching architecture.
 - Connect the GitHub repo so every push to `main` auto-deploys a preview/prod
   build.
 
-## Phase 1 — Frontend hardening
+## Phase 1 — Frontend hardening ✅ done
 
-The current single 1000-line `App.jsx` and total lack of tests/CI won't
-survive real feature work.
+- ✅ Split `App.jsx` into components under `src/components/` and data/logic
+  under `src/lib/` (theme, mock data, X-ray layer content).
+- ✅ Added Vitest + React Testing Library, with smoke tests for `App`,
+  `Sidebar`, `Badge`, `Chip`.
+- ✅ `.github/workflows/ci.yml` runs `npm run lint`, `npm run test`, and
+  `npm run build` on every push/PR to `main`, as a merge gate.
 
-- Split `App.jsx` into components (tabs, X-ray layers, sitemap view, etc.)
-  under `src/components/`.
-- Add **Vitest + React Testing Library** — nothing exists today.
-- Add `.github/workflows/ci.yml` running `npm run lint` and `npm run build`
-  on every PR, as a merge gate.
+Not done yet, left for whoever picks up more frontend work: no TypeScript,
+no visual regression testing, and test coverage is smoke-level only (renders
+without crashing, key interactions fire) rather than exhaustive.
 
 ## Phase 2 — Real crawler engine
 
