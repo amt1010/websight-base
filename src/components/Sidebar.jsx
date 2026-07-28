@@ -1,4 +1,5 @@
 import { T, hex2rgb } from "../lib/theme";
+import { RESTRICTED_TABS } from "../lib/access";
 
 const NAV=[
   {id:"overview",icon:"⊞",label:"Overview"},{id:"sitemap",icon:"⊛",label:"Sitemap"},
@@ -6,7 +7,7 @@ const NAV=[
   {id:"apis",icon:"⊕",label:"APIs"},{id:"export",icon:"↓",label:"Export"},
 ];
 
-export function Sidebar({tab,setTab,projects}){
+export function Sidebar({tab,setTab,projects,access}){
   return(
     <div style={{width:200,background:T.bg1,borderRight:`1px solid ${T.border}`,display:"flex",flexDirection:"column",flexShrink:0,minHeight:620}}>
       <div style={{padding:"18px 16px 14px",borderBottom:`1px solid ${T.border}`}}>
@@ -17,9 +18,13 @@ export function Sidebar({tab,setTab,projects}){
       </div>
       <div style={{padding:"10px 8px",flex:1}}>
         <div style={{fontSize:10,color:T.text2,fontFamily:T.sans,letterSpacing:".8px",padding:"6px 8px 4px",fontWeight:600}}>ANALYSIS</div>
-        {NAV.map(n=>{const active=tab===n.id;return(
+        {NAV.map(n=>{
+          const active=tab===n.id;
+          const restricted=RESTRICTED_TABS.includes(n.id)&&access?.tier!=="paid";
+          return(
           <button key={n.id} onClick={()=>setTab(n.id)} style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"8px 10px",marginBottom:2,background:active?T.accentDim:"transparent",border:active?`1px solid ${T.border}`:"1px solid transparent",borderRadius:8,color:active?T.text0:T.text1,cursor:"pointer",fontSize:13,fontFamily:T.sans,fontWeight:active?500:400,textAlign:"left",transition:"all .12s"}}>
             <span style={{fontSize:14,width:18,textAlign:"center",color:active?T.accent:T.text2}}>{n.icon}</span>{n.label}
+            {restricted&&<span style={{marginLeft:"auto",fontSize:11}}>🔒</span>}
           </button>);
         })}
         <div style={{height:1,background:T.border,margin:"6px 0"}}/>
