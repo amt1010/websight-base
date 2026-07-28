@@ -8,16 +8,24 @@ WebSight is a **fully mocked frontend demo** — a single React SPA that renders
 "website X-ray" dashboard (sitemap mind-map, page templates, detected
 third-party APIs, layered X-ray view) for a fake crawl of a healthcare site.
 
-**There is no backend, no crawler, no database, and no live data.** Every
-number and screenshot description on screen comes from one hardcoded object
-(`BSW` in `src/lib/mockData.js`). Do not assume any API call, fetch, or
-persistence layer exists unless you've just added it yourself. See
-`ROADMAP.md` for the plan to make this real.
+**Scan results are still fully mocked.** Every number and screenshot
+description on screen comes from one hardcoded object (`BSW` in
+`src/lib/mockData.js`) — see `ROADMAP.md` for the plan to make that part
+real (Phase 4).
+
+**Auth and scan quota are real**, layered on top of that mock: this app
+calls the separately-deployed `websight-data` API (`src/lib/auth.js`) for
+Clerk login, guest-mode tokens, and per-scan quota enforcement. See
+`docs/superpowers/specs/2026-07-28-home-login-guest-gating-design.md` for
+the design. Do not assume any *other* API call, fetch, or persistence layer
+exists beyond what's in `src/lib/auth.js`.
 
 ## Stack
 
 - React 19 + Vite 8, plain JSX (no TypeScript — `@types/react` is present only
   for editor intellisense, nothing is type-checked)
+- `@clerk/clerk-react` for auth (login UI, session JWTs) — see `.env.example`
+  for the required `VITE_CLERK_PUBLISHABLE_KEY` / `VITE_API_BASE_URL`.
 - ESLint 10, flat config in `eslint.config.js` (`react-hooks`, `react-refresh`)
 - Vitest + React Testing Library + jsdom for tests
 - Plain CSS + inline style objects. No Tailwind, no CSS-in-JS library.
@@ -47,17 +55,27 @@ The app is componentized under `src/`:
   replace.
 - `src/lib/xrayContent.jsx` — the fake per-page-type visual/HTML/CSS/API/data
   layer content used by the X-Ray tab.
-- `src/components/ui/` — shared atoms (`Badge`, `Chip`).
+- `src/lib/auth.js` — plain functions for the `websight-data` API: guest
+  token creation, `fetchGuestInit`/`fetchMe`/`consumeScan`. No component
+  calls `fetch` directly; everything goes through this module.
+- `src/lib/access.js` — `RESTRICTED_TABS`, the tab ids gated behind a paid
+  plan, shared by `Sidebar` and `App`.
+- `src/components/ui/` — shared atoms (`Badge`, `Chip`, `UpsellNotice`).
+- `src/components/HomePage.jsx` — the pre-dashboard screen: Clerk login
+  entry point and guest-mode entry point.
 - `src/components/` — `Sidebar`, `MindMap`, `XRayTab`, `Fonts`.
 - `src/components/tabs/` — one file per dashboard tab: `OverviewTab`,
   `SitemapTab`, `TemplatesTab` (+ `StackedPreview`), `APIsTab`, `ExportTab`.
-- `src/App.jsx` — just the root component: tab switching, the fake
-  analyze/loading sequence, and composing the pieces above.
+- `src/App.jsx` — the root component: `view` (home/dashboard) and `access`
+  (tier/quota) state, resolving access from either guest-mode or a Clerk
+  login, tab switching and gating, the fake analyze/loading sequence, and
+  composing the pieces above.
 - `*.test.jsx` files sit next to the component they test (e.g.
   `src/components/Sidebar.test.jsx`). `src/test/setup.js` wires up
   `@testing-library/jest-dom` matchers and RTL's `cleanup` between tests.
 
-`src/main.jsx` just mounts `<App/>`. `index.html` is the Vite entry point.
+`src/main.jsx` wraps `<App/>` in Clerk's `<ClerkProvider>` and mounts it.
+`index.html` is the Vite entry point.
 
 ## Conventions
 
