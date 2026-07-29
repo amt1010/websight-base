@@ -198,12 +198,12 @@ export default function App(){
     const nodes=buildSitemapNodes(crawl.pages,crawl.domain);
     const templates=mapTemplates(crawl.clusters,crawl.pages.length);
     const apis=mapIntegrations(crawl.integrations);
-    const data={domain:crawl.domain,metrics,nodes,templates,apis};
+    const data={domain:crawl.domain,metrics,nodes,templates,apis,pages:crawl.pages};
     switch(tab){
       case"overview": return<OverviewTab data={data}/>;
       case"sitemap": return<SitemapTab data={data}/>;
-      case"templates": return<TemplatesTab data={data}/>;
-      case"xray": return<XRayTab/>;
+      case"templates": return<TemplatesTab data={data} pages={data.pages}/>;
+      case"xray": return<XRayTab pages={data.pages}/>;
       case"apis": return<APIsTab data={data}/>;
       case"export": return<ExportTab/>;
       default: return<OverviewTab data={data}/>;
