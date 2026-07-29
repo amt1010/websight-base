@@ -51,6 +51,7 @@ export function mapTemplates(clusters, totalPages) {
     count: c.pageUrls.length,
     total: totalPages,
     pattern: c.urlPattern,
+    pageUrls: c.pageUrls,
     color: PALETTE[i % PALETTE.length],
   }));
 }

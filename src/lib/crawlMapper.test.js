@@ -65,7 +65,7 @@ describe("mapTemplates", () => {
   it("maps clusters to templates and wraps the color palette", () => {
     const clusters = Array.from({ length: 6 }, (_, i) => ({ urlPattern: `/p${i}/*`, pageUrls: ["a", "b"] }));
     const templates = mapTemplates(clusters, 100);
-    expect(templates[0]).toMatchObject({ name: "/p0/*", pattern: "/p0/*", count: 2, total: 100 });
+    expect(templates[0]).toMatchObject({ name: "/p0/*", pattern: "/p0/*", count: 2, total: 100, pageUrls: ["a", "b"] });
     expect(templates[0].color).toBe(templates[5].color);
   });
 });
