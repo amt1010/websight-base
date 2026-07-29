@@ -34,7 +34,7 @@ export class ApiError extends Error {
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 
-async function apiFetch(path, options) {
+export async function apiFetch(path, options) {
   const res = await fetch(`${API_BASE}${path}`, options);
   let body = null;
   try {
