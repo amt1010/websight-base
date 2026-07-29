@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, within } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import App from "./App";
 
 let mockIsSignedIn = false;
@@ -18,15 +18,33 @@ vi.mock("./lib/auth", async () => {
     getOrCreateGuestToken: vi.fn(() => "guest-token-1"),
     fetchGuestInit: vi.fn(),
     fetchMe: vi.fn(),
-    consumeScan: vi.fn(),
   };
 });
 
-import { fetchGuestInit, fetchMe, consumeScan, ApiError } from "./lib/auth";
+vi.mock("./lib/crawls", () => ({
+  createCrawl: vi.fn(),
+  getCrawl: vi.fn(),
+  listCrawls: vi.fn(),
+}));
+
+import { fetchGuestInit, fetchMe, ApiError } from "./lib/auth";
+import { createCrawl, getCrawl, listCrawls } from "./lib/crawls";
+
+const DONE_CRAWL = {
+  id: 1,
+  domain: "example.com",
+  status: "done",
+  startedAt: "2026-07-29T00:00:00.000Z",
+  finishedAt: "2026-07-29T00:00:03.000Z",
+  error: null,
+  pages: [{ url: "https://example.com/", path: "/", depth: 0, status: "ok" }],
+  clusters: [{ urlPattern: "/", pageUrls: ["https://example.com/"] }],
+  integrations: [{ name: "Google Maps", category: "maps", matchedUrls: ["https://maps.googleapis.com/x"] }],
+};
 
 async function continueAsGuest() {
   fireEvent.click(screen.getByRole("button", { name: /continue as guest/i }));
-  await vi.waitFor(() => screen.getByText("Baylor Scott & White Health"));
+  await vi.waitFor(() => screen.getByText(/enter a domain/i));
 }
 
 describe("App", () => {
@@ -35,7 +53,9 @@ describe("App", () => {
     mockIsSignedIn = false;
     fetchGuestInit.mockReset().mockResolvedValue({ guestToken: "guest-token-1", remainingScans: 1 });
     fetchMe.mockReset();
-    consumeScan.mockReset();
+    createCrawl.mockReset();
+    getCrawl.mockReset();
+    listCrawls.mockReset().mockResolvedValue({ crawls: [] });
   });
 
   afterEach(() => {
@@ -45,16 +65,25 @@ describe("App", () => {
   it("shows the home page before any login/guest choice", () => {
     render(<App />);
     expect(screen.getByRole("button", { name: /continue as guest/i })).toBeInTheDocument();
-    expect(screen.queryByText("Baylor Scott & White Health")).not.toBeInTheDocument();
   });
 
-  it("renders the Overview tab by default once past the home screen as a guest", async () => {
+  it("shows an empty state after guest access with no prior crawls", async () => {
     render(<App />);
     await continueAsGuest();
-    expect(screen.getByText("Baylor Scott & White Health")).toBeInTheDocument();
+    expect(screen.getByText(/no analysis yet/i)).toBeInTheDocument();
   });
 
-  it("switches tabs when a sidebar item is clicked", async () => {
+  it("auto-loads the most recent crawl on dashboard entry", async () => {
+    listCrawls.mockResolvedValue({
+      crawls: [{ id: 1, domain: "example.com", status: "done", startedAt: "2026-07-29T00:00:00.000Z", finishedAt: "2026-07-29T00:00:03.000Z" }],
+    });
+    getCrawl.mockResolvedValue(DONE_CRAWL);
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: /continue as guest/i }));
+    await vi.waitFor(() => expect(screen.getAllByText("example.com").length).toBeGreaterThan(0));
+  });
+
+  it("switches tabs", async () => {
     render(<App />);
     await continueAsGuest();
     fireEvent.click(screen.getByText("Sitemap"));
@@ -80,45 +109,55 @@ describe("App", () => {
       plan: { name: "Pro", tier: "paid", scanLimit: 50 },
       remainingScans: 50,
     });
+    listCrawls.mockResolvedValue({ crawls: [{ id: 1, domain: "example.com", status: "done" }] });
+    getCrawl.mockResolvedValue(DONE_CRAWL);
     render(<App />);
-    await vi.waitFor(() => screen.getByText("Baylor Scott & White Health"));
     await vi.waitFor(() => expect(screen.queryByText("🔒")).not.toBeInTheDocument());
+    await vi.waitFor(() => expect(screen.getAllByText("example.com").length).toBeGreaterThan(0));
 
     fireEvent.click(screen.getByText("APIs"));
-    expect(screen.getByText("Phynd Provider Directory API")).toBeInTheDocument();
+    expect(screen.getByText("Google Maps")).toBeInTheDocument();
   });
 
-  it("runs the fake analyze/loading sequence after a successful consumeScan", async () => {
-    consumeScan.mockResolvedValue({ remainingScans: 0 });
+  it("runs a real analyze flow: creates a crawl, polls through running, and renders real data once done", async () => {
+    createCrawl.mockResolvedValue({ crawlId: 42, remainingScans: 0 });
+    getCrawl
+      .mockResolvedValueOnce({ id: 42, domain: "example.com", status: "running", startedAt: null, finishedAt: null, error: null })
+      .mockResolvedValueOnce(DONE_CRAWL);
     render(<App />);
     await continueAsGuest();
 
+    fireEvent.change(screen.getByPlaceholderText("https://example.com"), { target: { value: "example.com" } });
     const analyzeButton = screen.getByRole("button", { name: /analyze/i });
     fireEvent.click(analyzeButton);
 
     await vi.waitFor(() => expect(screen.getByText("Analyzing website")).toBeInTheDocument());
     expect(analyzeButton).toBeDisabled();
 
-    await vi.advanceTimersByTimeAsync(6 * 500 + 500);
-
+    await vi.advanceTimersByTimeAsync(2000);
+    await vi.waitFor(() => expect(screen.getByText("example.com")).toBeInTheDocument());
     expect(screen.queryByText("Analyzing website")).not.toBeInTheDocument();
-    expect(within(screen.getByRole("button", { name: /analyze/i })).getByText(/analyze/i)).toBeInTheDocument();
   });
 
-  it("shows a quota-exceeded UpsellNotice instead of the loading animation on a second Analyze click", async () => {
-    consumeScan
-      .mockResolvedValueOnce({ remainingScans: 0 })
-      .mockRejectedValueOnce(new ApiError(402, { plan: "Guest", scanLimit: 1, used: 1 }));
+  it("shows a quota-exceeded UpsellNotice when createCrawl rejects with 402", async () => {
+    createCrawl.mockRejectedValue(new ApiError(402, { plan: "Guest", scanLimit: 1, used: 1 }));
     render(<App />);
     await continueAsGuest();
 
-    const analyzeButton = screen.getByRole("button", { name: /analyze/i });
-    fireEvent.click(analyzeButton);
-    await vi.waitFor(() => expect(screen.getByText("Analyzing website")).toBeInTheDocument());
-    await vi.advanceTimersByTimeAsync(6 * 500 + 500);
-
+    fireEvent.change(screen.getByPlaceholderText("https://example.com"), { target: { value: "example.com" } });
     fireEvent.click(screen.getByRole("button", { name: /analyze/i }));
     await vi.waitFor(() => expect(screen.getByText("Scan limit reached")).toBeInTheDocument());
     expect(screen.getByText(/log in for more/i)).toBeInTheDocument();
+  });
+
+  it("shows the crawl's error message when the crawl fails", async () => {
+    createCrawl.mockResolvedValue({ crawlId: 43, remainingScans: 0 });
+    getCrawl.mockResolvedValue({ id: 43, domain: "example.com", status: "failed", error: "robots.txt disallowed all crawling" });
+    render(<App />);
+    await continueAsGuest();
+
+    fireEvent.change(screen.getByPlaceholderText("https://example.com"), { target: { value: "example.com" } });
+    fireEvent.click(screen.getByRole("button", { name: /analyze/i }));
+    await vi.waitFor(() => expect(screen.getByText("robots.txt disallowed all crawling")).toBeInTheDocument());
   });
 });

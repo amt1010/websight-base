@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@clerk/clerk-react";
 import { T } from "./lib/theme";
-import { BSW } from "./lib/mockData";
 import { RESTRICTED_TABS } from "./lib/access";
-import { getOrCreateGuestToken, fetchMe, consumeScan, ApiError } from "./lib/auth";
+import { getOrCreateGuestToken, fetchMe, ApiError } from "./lib/auth";
+import { createCrawl, getCrawl, listCrawls } from "./lib/crawls";
+import { mapMetrics, buildSitemapNodes, mapTemplates, mapIntegrations, mapProjects } from "./lib/crawlMapper";
 import { Fonts } from "./components/Fonts";
 import { HomePage } from "./components/HomePage";
 import { Sidebar } from "./components/Sidebar";
@@ -15,20 +16,27 @@ import { TemplatesTab } from "./components/tabs/TemplatesTab";
 import { APIsTab } from "./components/tabs/APIsTab";
 import { ExportTab } from "./components/tabs/ExportTab";
 
-const STEP_LABELS=["Fetching sitemap files…","Discovering URL patterns…","Identifying templates…","Detecting APIs…","Analyzing tech stack…","Building report…"];
-
 const INITIAL_ACCESS = { tier: null, planName: "", scanLimit: 0, remainingScans: 0, loading: false, error: null };
+const POLL_INTERVAL_MS = 2000;
+const MAX_POLL_FAILURES = 3;
 
 export default function App(){
   const[view,setView]=useState("home");
   const[access,setAccess]=useState(INITIAL_ACCESS);
   const[analyzeError,setAnalyzeError]=useState(null);
   const[tab,setTab]=useState("overview");
-  const[data]=useState(BSW);
-  const[url,setUrl]=useState("https://www.bswhealth.com");
-  const[loading,setLoading]=useState(false);
-  const[step,setStep]=useState(0);
+  const[url,setUrl]=useState("");
+  const[projects,setProjects]=useState([]);
+  const[crawlId,setCrawlId]=useState(null);
+  const[crawlStatus,setCrawlStatus]=useState(null);
+  const[crawl,setCrawl]=useState(null);
+  const[crawlError,setCrawlError]=useState(null);
   const{isSignedIn,getToken}=useAuth();
+
+  async function resolveIdentity(){
+    if(isSignedIn) return { clerkToken: await getToken() };
+    return { guestToken: getOrCreateGuestToken() };
+  }
 
   useEffect(()=>{
     if(!isSignedIn)return;
@@ -49,20 +57,71 @@ export default function App(){
     return()=>{cancelled=true;};
   },[isSignedIn,getToken]);
 
+  async function refreshProjects(){
+    try{
+      const identity=await resolveIdentity();
+      const result=await listCrawls(identity);
+      setProjects(mapProjects(result));
+      return result;
+    }catch{
+      setProjects([]);
+      return {crawls:[]};
+    }
+  }
+
   useEffect(()=>{
-    if(!loading)return;
-    const id=setInterval(()=>{
-      setStep(s=>{
-        if(s>=STEP_LABELS.length-1){
-          clearInterval(id);
-          setTimeout(()=>setLoading(false),400);
-          return s;
+    if(view!=="dashboard")return;
+    let cancelled=false;
+    (async()=>{
+      const result=await refreshProjects();
+      if(cancelled)return;
+      const[mostRecent]=result.crawls??[];
+      if(mostRecent)setCrawlId(mostRecent.id);
+    })();
+    return()=>{cancelled=true;};
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[view]);
+
+  useEffect(()=>{
+    if(!crawlId)return;
+    let cancelled=false;
+    let failures=0;
+    let timeoutId;
+
+    async function poll(){
+      if(cancelled)return;
+      try{
+        const identity=await resolveIdentity();
+        const result=await getCrawl(crawlId,identity);
+        if(cancelled)return;
+        failures=0;
+        setCrawlStatus(result.status);
+        if(result.status==="done"){
+          setCrawl(result);
+          refreshProjects();
+          return;
         }
-        return s+1;
-      });
-    },500);
-    return()=>clearInterval(id);
-  },[loading]);
+        if(result.status==="failed"){
+          setCrawlError(result.error||"The crawl failed.");
+          refreshProjects();
+          return;
+        }
+        timeoutId=setTimeout(poll,POLL_INTERVAL_MS);
+      }catch{
+        failures+=1;
+        if(cancelled)return;
+        if(failures>=MAX_POLL_FAILURES){
+          setCrawlError("Lost connection while checking crawl status.");
+          setCrawlStatus("failed");
+          return;
+        }
+        timeoutId=setTimeout(poll,POLL_INTERVAL_MS);
+      }
+    }
+    poll();
+    return()=>{cancelled=true;clearTimeout(timeoutId);};
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[crawlId,isSignedIn,getToken]);
 
   function handleGuestAccess(nextAccess){
     setAccess(nextAccess);
@@ -76,13 +135,14 @@ export default function App(){
 
   async function handleAnalyzeClick(){
     setAnalyzeError(null);
+    setCrawlError(null);
     try{
-      const clerkToken=isSignedIn?await getToken():undefined;
-      const guestToken=isSignedIn?undefined:getOrCreateGuestToken();
-      const result=await consumeScan({guestToken,clerkToken});
+      const identity=await resolveIdentity();
+      const result=await createCrawl({domain:url,...identity});
       setAccess(a=>({...a,remainingScans:result.remainingScans}));
-      setStep(0);
-      setLoading(true);
+      setCrawl(null);
+      setCrawlStatus("queued");
+      setCrawlId(result.crawlId);
     }catch(err){
       if(err instanceof ApiError&&err.status===402){
         setAccess(a=>({...a,remainingScans:0}));
@@ -94,17 +154,23 @@ export default function App(){
   }
 
   const isPaid=access.tier==="paid";
+  const isBusy=crawlStatus==="queued"||crawlStatus==="running";
 
   const tabContent=()=>{
-    if(loading)return(
+    if(isBusy)return(
       <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:400,gap:20}}>
         <div style={{width:36,height:36,border:`2px solid ${T.border}`,borderTopColor:T.accent,borderRadius:"50%",animation:"spin .8s linear infinite"}}/>
         <div style={{fontSize:15,fontWeight:600,color:T.text0,fontFamily:T.sans}}>Analyzing website</div>
-        <div style={{display:"flex",flexDirection:"column",gap:8,width:280}}>{STEP_LABELS.map((s,i)=>(
-          <div key={i} style={{display:"flex",alignItems:"center",gap:10,fontSize:12,color:i<step?T.green:i===step?T.text0:T.text2,fontFamily:T.body}}>
-            <div style={{width:7,height:7,borderRadius:"50%",flexShrink:0,background:i<step?T.green:i===step?T.accent:"rgba(255,255,255,0.1)",boxShadow:i===step?`0 0 8px ${T.accent}`:""}}/>{s}
-          </div>))}</div>
+        <div style={{fontSize:13,color:T.text1,fontFamily:T.body}}>{crawlStatus==="queued"?"Waiting in queue…":`Crawling ${url}…`}</div>
       </div>);
+    if(crawlStatus==="failed"){
+      return(
+        <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:300,gap:12}}>
+          <div style={{fontSize:13,color:T.text1,fontFamily:T.body}}>{crawlError||"Something went wrong crawling this site."}</div>
+          <button onClick={handleAnalyzeClick} style={{padding:"7px 18px",background:T.bg2,border:`1px solid ${T.border}`,borderRadius:8,color:T.text0,fontSize:13,fontFamily:T.sans,cursor:"pointer"}}>Retry</button>
+        </div>
+      );
+    }
     if(analyzeError?.kind==="quota"){
       const hint=access.tier==="guest"?" Log in for more scans.":"";
       return<UpsellNotice title="Scan limit reached" message={`You've used all ${analyzeError.body.scanLimit} scans on the ${analyzeError.body.plan} plan.${hint}`}/>;
@@ -120,6 +186,19 @@ export default function App(){
     if(RESTRICTED_TABS.includes(tab)&&!isPaid){
       return<UpsellNotice title="Upgrade to unlock this tab" message="This tab is available on paid plans."/>;
     }
+    if(crawlStatus!=="done"||!crawl){
+      return(
+        <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:300,gap:10}}>
+          <div style={{fontSize:14,fontWeight:600,color:T.text0,fontFamily:T.sans}}>No analysis yet</div>
+          <div style={{fontSize:13,color:T.text2,fontFamily:T.body}}>Enter a domain above and click Analyze to get started.</div>
+        </div>
+      );
+    }
+    const metrics=mapMetrics(crawl);
+    const nodes=buildSitemapNodes(crawl.pages,crawl.domain);
+    const templates=mapTemplates(crawl.clusters,crawl.pages.length);
+    const apis=mapIntegrations(crawl.integrations);
+    const data={domain:crawl.domain,metrics,nodes,templates,apis};
     switch(tab){
       case"overview": return<OverviewTab data={data}/>;
       case"sitemap": return<SitemapTab data={data}/>;
@@ -143,12 +222,12 @@ export default function App(){
           <div style={{background:T.bg2,borderBottom:`1px solid ${T.border}`,padding:"8px 20px",fontSize:12,color:T.amber,fontFamily:T.body}}>{access.error}</div>
         )}
         <div style={{display:"flex",flex:1}}>
-          <Sidebar tab={tab} setTab={handleSetTab} projects={data.projects} access={access}/>
+          <Sidebar tab={tab} setTab={handleSetTab} projects={projects} access={access} currentCrawlId={crawlId}/>
           <div style={{flex:1,display:"flex",flexDirection:"column",minWidth:0}}>
             <div style={{background:T.bg1,borderBottom:`1px solid ${T.border}`,padding:"10px 20px",display:"flex",gap:10,alignItems:"center"}}>
               <span style={{fontSize:14,color:T.text2}}>🌐</span>
               <input value={url} onChange={e=>setUrl(e.target.value)} placeholder="https://example.com" style={{flex:1,background:T.bg2,border:`1px solid ${T.border}`,borderRadius:8,padding:"8px 14px",fontSize:13,color:T.text0,fontFamily:T.mono,outline:"none"}}/>
-              <button onClick={handleAnalyzeClick} disabled={loading} style={{padding:"8px 22px",background:`linear-gradient(135deg,${T.accent},${T.violet})`,border:"none",borderRadius:8,color:"#fff",fontSize:13,fontFamily:T.sans,fontWeight:600,cursor:loading?"default":"pointer",whiteSpace:"nowrap",letterSpacing:".2px",opacity:loading?0.6:1}}>Analyze ↗</button>
+              <button onClick={handleAnalyzeClick} disabled={isBusy} style={{padding:"8px 22px",background:`linear-gradient(135deg,${T.accent},${T.violet})`,border:"none",borderRadius:8,color:"#fff",fontSize:13,fontFamily:T.sans,fontWeight:600,cursor:isBusy?"default":"pointer",whiteSpace:"nowrap",letterSpacing:".2px",opacity:isBusy?0.6:1}}>Analyze ↗</button>
             </div>
             <div style={{flex:1,overflowY:"auto",padding:"18px 20px"}}>{tabContent()}</div>
           </div>
