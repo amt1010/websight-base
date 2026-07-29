@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { T, hex2rgb, pct } from "../../lib/theme";
+import { PagePreview } from "../PagePreview";
 
-export function TemplatesTab({data}){
+export function TemplatesTab({data, pages}){
   const [sel, setSel] = useState(data.templates[0] ?? null);
+  const representativePage = sel ? (pages ?? []).find((p) => sel.pageUrls.includes(p.url)) ?? null : null;
   return(
     <div style={{display:"flex",flexDirection:"column",gap:10}}>
       <div style={{background:`rgba(${hex2rgb(T.accent)},0.06)`,border:`1px solid rgba(${hex2rgb(T.accent)},0.2)`,borderRadius:10,padding:"10px 14px",fontSize:13,color:T.text1,fontFamily:T.body,lineHeight:1.6}}>
-        Found <strong style={{color:T.text0}}>{data.templates.length} page templates</strong>. Click a template to see its URL pattern and page count.
+        Found <strong style={{color:T.text0}}>{data.templates.length} page templates</strong>. Click a template to see its URL pattern, page count, and a representative page.
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:8}}>
         {data.templates.map(t=>{const p=pct(t.count,t.total);const active=sel?.id===t.id;return(
@@ -20,10 +22,13 @@ export function TemplatesTab({data}){
         })}
       </div>
       {sel ? (
-        <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:12,padding:"14px 18px"}}>
-          <div style={{fontSize:12,fontWeight:600,color:T.text2,fontFamily:T.sans,letterSpacing:".6px",marginBottom:8}}>SELECTED TEMPLATE</div>
-          <div style={{fontSize:13,color:T.text1,fontFamily:T.mono,marginBottom:4}}>{sel.pattern}</div>
-          <div style={{fontSize:12,color:T.text2,fontFamily:T.body}}>{sel.count.toLocaleString()} of {sel.total.toLocaleString()} pages</div>
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:12,padding:"14px 18px"}}>
+            <div style={{fontSize:12,fontWeight:600,color:T.text2,fontFamily:T.sans,letterSpacing:".6px",marginBottom:8}}>SELECTED TEMPLATE</div>
+            <div style={{fontSize:13,color:T.text1,fontFamily:T.mono,marginBottom:4}}>{sel.pattern}</div>
+            <div style={{fontSize:12,color:T.text2,fontFamily:T.body}}>{sel.count.toLocaleString()} of {sel.total.toLocaleString()} pages</div>
+          </div>
+          <PagePreview page={representativePage}/>
         </div>
       ) : (
         <div style={{height:120,display:"flex",alignItems:"center",justifyContent:"center",background:T.bg1,borderRadius:12,border:`1px dashed ${T.border}`}}>
