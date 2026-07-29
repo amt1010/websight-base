@@ -1,16 +1,22 @@
-import { useState, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import { T } from "../lib/theme";
 
 export function PagePreview({ page }) {
+  const htmlUrl = page?.htmlUrl ?? null;
   const [html, setHtml] = useState(null);
   const [htmlFailed, setHtmlFailed] = useState(false);
+  const lastUrlRef = useRef(htmlUrl);
 
-  useEffect(() => {
+  if (lastUrlRef.current !== htmlUrl) {
+    lastUrlRef.current = htmlUrl;
     setHtml(null);
     setHtmlFailed(false);
-    if (!page?.htmlUrl) return;
+  }
+
+  useEffect(() => {
+    if (!htmlUrl) return;
     let cancelled = false;
-    fetch(page.htmlUrl)
+    fetch(htmlUrl)
       .then((res) => {
         if (!res.ok) throw new Error(`status ${res.status}`);
         return res.text();
@@ -24,7 +30,7 @@ export function PagePreview({ page }) {
     return () => {
       cancelled = true;
     };
-  }, [page?.htmlUrl]);
+  }, [htmlUrl]);
 
   if (!page) {
     return (
