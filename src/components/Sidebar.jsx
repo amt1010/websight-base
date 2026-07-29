@@ -7,7 +7,7 @@ const NAV=[
   {id:"apis",icon:"⊕",label:"APIs"},{id:"export",icon:"↓",label:"Export"},
 ];
 
-export function Sidebar({tab,setTab,projects,access}){
+export function Sidebar({tab,setTab,projects,access,currentCrawlId}){
   return(
     <div style={{width:200,background:T.bg1,borderRight:`1px solid ${T.border}`,display:"flex",flexDirection:"column",flexShrink:0,minHeight:620}}>
       <div style={{padding:"18px 16px 14px",borderBottom:`1px solid ${T.border}`}}>
@@ -29,12 +29,15 @@ export function Sidebar({tab,setTab,projects,access}){
         })}
         <div style={{height:1,background:T.border,margin:"6px 0"}}/>
         <div style={{fontSize:10,color:T.text2,fontFamily:T.sans,letterSpacing:".8px",padding:"8px 8px 4px",fontWeight:600}}>PROJECTS</div>
-        {projects.map(p=>(
-          <div key={p.id} style={{padding:"7px 10px",borderRadius:8,marginBottom:2,background:p.name==="bswhealth.com"?T.accentDim:"transparent",border:p.name==="bswhealth.com"?`1px solid ${T.border}`:"1px solid transparent",cursor:"pointer"}}>
-            <div style={{fontSize:12,color:p.name==="bswhealth.com"?T.text0:T.text1,fontFamily:T.mono,fontWeight:500,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.name}</div>
-            <div style={{fontSize:10,color:T.text2,fontFamily:T.body,marginTop:2,display:"flex",justifyContent:"space-between"}}><span>{p.status==="done"?"✓ Done":"… Queued"}</span>{p.score&&<span style={{color:p.score>85?T.green:T.amber}}>{p.score}</span>}</div>
-          </div>
-        ))}
+        {projects.map(p=>{
+          const isCurrent=p.id===currentCrawlId;
+          const statusLabel=p.status==="done"?"✓ Done":p.status==="failed"?"✕ Failed":p.status==="running"?"… Running":"… Queued";
+          return(
+          <div key={p.id} style={{padding:"7px 10px",borderRadius:8,marginBottom:2,background:isCurrent?T.accentDim:"transparent",border:isCurrent?`1px solid ${T.border}`:"1px solid transparent",cursor:"pointer"}}>
+            <div style={{fontSize:12,color:isCurrent?T.text0:T.text1,fontFamily:T.mono,fontWeight:500,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.name}</div>
+            <div style={{fontSize:10,color:T.text2,fontFamily:T.body,marginTop:2,display:"flex",justifyContent:"space-between"}}><span>{statusLabel}</span></div>
+          </div>);
+        })}
       </div>
       <div style={{padding:"12px 16px",borderTop:`1px solid ${T.border}`}}>
         <div style={{fontSize:11,color:T.text2,fontFamily:T.body,lineHeight:1.5}}>
