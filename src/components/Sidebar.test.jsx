@@ -37,6 +37,13 @@ describe("Sidebar", () => {
     expect(screen.queryByText("🔒")).not.toBeInTheDocument();
   });
 
+  it("calls onLogout when the Log out button is clicked", () => {
+    const onLogout = vi.fn();
+    render(<Sidebar tab="overview" setTab={() => {}} projects={projects} onLogout={onLogout} />);
+    fireEvent.click(screen.getByText("Log out"));
+    expect(onLogout).toHaveBeenCalled();
+  });
+
   it("shows status labels for done, running, and queued projects", () => {
     const statuses = [
       { id: 1, name: "a.com", status: "done", date: "Jul 29" },

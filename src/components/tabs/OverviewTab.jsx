@@ -1,12 +1,22 @@
 import { T, hex2rgb } from "../../lib/theme";
+import { Chip } from "../ui/Chip";
+import { useHtmlText } from "../../lib/useHtmlText";
+import { extractDescription } from "../../lib/pageMeta";
 
 export function OverviewTab({data}){
   const metrics=[{l:"Total pages",v:data.metrics.pages.toLocaleString(),c:T.accent},{l:"Sitemap sections",v:data.metrics.sections,c:T.violet},{l:"Page templates",v:data.metrics.templates,c:T.cyan},{l:"APIs detected",v:data.metrics.apis,c:T.green},{l:"Crawl time",v:data.metrics.crawlTime,c:T.amber}];
+  const pages=data.pages??[];
+  const homepage=pages.find(p=>p.path==="/")??pages[0]??null;
+  const{html}=useHtmlText(homepage?.htmlUrl??null);
+  const description=extractDescription(html);
   return(
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
       <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:12,padding:"16px 20px",position:"relative",overflow:"hidden"}}>
         <div style={{position:"absolute",top:-20,right:-20,width:120,height:120,borderRadius:"50%",background:`radial-gradient(circle,rgba(${hex2rgb(T.accent)},0.15),transparent 70%)`,pointerEvents:"none"}}/>
         <div style={{fontSize:18,fontWeight:700,color:T.text0,fontFamily:T.sans,letterSpacing:"-.4px"}}>{data.domain}</div>
+        {description&&(
+          <div style={{fontSize:13,color:T.text1,fontFamily:T.body,marginTop:8,lineHeight:1.6,maxWidth:640,position:"relative"}}>{description}</div>
+        )}
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8}}>{metrics.map(m=>(
         <div key={m.l} style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:10,padding:"12px 14px",position:"relative",overflow:"hidden"}}>
@@ -15,6 +25,14 @@ export function OverviewTab({data}){
           <div style={{fontSize:22,fontWeight:700,color:m.c,fontFamily:T.sans,letterSpacing:"-.5px"}}>{m.v}</div>
         </div>
       ))}</div>
+      {data.apis.length>0&&(
+        <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:12,padding:"14px 18px"}}>
+          <div style={{fontSize:12,fontWeight:600,color:T.text2,fontFamily:T.sans,letterSpacing:".6px",marginBottom:10}}>TECH STACK</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+            {data.apis.map(a=><Chip key={a.name} label={a.name}/>)}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -46,11 +46,11 @@ export function mapMetrics(crawl) {
 
 export function mapTemplates(clusters, totalPages) {
   return clusters.map((c, i) => ({
-    id: c.urlPattern || `cluster-${i}`,
-    name: c.urlPattern,
+    id: `${c.urlPattern || "cluster"}-${i}`,
+    name: c.urlPattern || `Cluster ${i + 1}`,
     count: c.pageUrls.length,
     total: totalPages,
-    pattern: c.urlPattern,
+    pattern: c.urlPattern || "—",
     pageUrls: c.pageUrls,
     color: PALETTE[i % PALETTE.length],
   }));

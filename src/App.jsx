@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
-import { useAuth } from "@clerk/clerk-react";
+import { useAuth, useClerk } from "@clerk/clerk-react";
 import { T } from "./lib/theme";
 import { RESTRICTED_TABS } from "./lib/access";
-import { getOrCreateGuestToken, fetchMe, ApiError } from "./lib/auth";
+import { getOrCreateGuestToken, clearGuestToken, fetchMe, ApiError } from "./lib/auth";
 import { createCrawl, getCrawl, listCrawls } from "./lib/crawls";
 import { mapMetrics, buildSitemapNodes, mapTemplates, mapIntegrations, mapProjects } from "./lib/crawlMapper";
 import { Fonts } from "./components/Fonts";
@@ -32,6 +32,7 @@ export default function App(){
   const[crawl,setCrawl]=useState(null);
   const[crawlError,setCrawlError]=useState(null);
   const{isSignedIn,getToken}=useAuth();
+  const{signOut}=useClerk();
 
   async function resolveIdentity(){
     if(isSignedIn) return { clerkToken: await getToken() };
@@ -128,6 +129,24 @@ export default function App(){
     setView("dashboard");
   }
 
+  async function handleLogout(){
+    if(isSignedIn){
+      await signOut?.();
+    }else{
+      clearGuestToken();
+    }
+    setView("home");
+    setAccess(INITIAL_ACCESS);
+    setAnalyzeError(null);
+    setTab("overview");
+    setUrl("");
+    setProjects([]);
+    setCrawlId(null);
+    setCrawlStatus(null);
+    setCrawl(null);
+    setCrawlError(null);
+  }
+
   function handleSetTab(nextTab){
     setAnalyzeError(null);
     setTab(nextTab);
@@ -222,7 +241,7 @@ export default function App(){
           <div style={{background:T.bg2,borderBottom:`1px solid ${T.border}`,padding:"8px 20px",fontSize:12,color:T.amber,fontFamily:T.body}}>{access.error}</div>
         )}
         <div style={{display:"flex",flex:1}}>
-          <Sidebar tab={tab} setTab={handleSetTab} projects={projects} access={access} currentCrawlId={crawlId}/>
+          <Sidebar tab={tab} setTab={handleSetTab} projects={projects} access={access} currentCrawlId={crawlId} onLogout={handleLogout}/>
           <div style={{flex:1,display:"flex",flexDirection:"column",minWidth:0}}>
             <div style={{background:T.bg1,borderBottom:`1px solid ${T.border}`,padding:"10px 20px",display:"flex",gap:10,alignItems:"center"}}>
               <span style={{fontSize:14,color:T.text2}}>🌐</span>

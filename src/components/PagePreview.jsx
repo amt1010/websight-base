@@ -1,36 +1,16 @@
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
 import { T } from "../lib/theme";
+import { useHtmlText } from "../lib/useHtmlText";
 
 export function PagePreview({ page }) {
-  const htmlUrl = page?.htmlUrl ?? null;
-  const [html, setHtml] = useState(null);
-  const [htmlFailed, setHtmlFailed] = useState(false);
-  const lastUrlRef = useRef(htmlUrl);
+  const screenshotUrl = page?.screenshotUrl ?? null;
+  const { html, failed: htmlFailed } = useHtmlText(page?.htmlUrl ?? null);
+  const [imgState, setImgState] = useState({ url: screenshotUrl, failed: false });
 
-  if (lastUrlRef.current !== htmlUrl) {
-    lastUrlRef.current = htmlUrl;
-    setHtml(null);
-    setHtmlFailed(false);
+  if (imgState.url !== screenshotUrl) {
+    setImgState({ url: screenshotUrl, failed: false });
   }
-
-  useEffect(() => {
-    if (!htmlUrl) return;
-    let cancelled = false;
-    fetch(htmlUrl)
-      .then((res) => {
-        if (!res.ok) throw new Error(`status ${res.status}`);
-        return res.text();
-      })
-      .then((text) => {
-        if (!cancelled) setHtml(text);
-      })
-      .catch(() => {
-        if (!cancelled) setHtmlFailed(true);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [htmlUrl]);
+  const imgFailed = imgState.failed;
 
   if (!page) {
     return (
@@ -47,11 +27,11 @@ export function PagePreview({ page }) {
           <div style={{display:"flex",gap:6}}>{["#FF5F57","#FEBC2E","#28C840"].map(c=><div key={c} style={{width:11,height:11,borderRadius:"50%",background:c}}/>)}</div>
           <div style={{flex:1,background:"rgba(255,255,255,0.05)",borderRadius:6,padding:"4px 12px",fontSize:11,color:T.text2,fontFamily:T.mono,marginLeft:6}}>{page.path}</div>
         </div>
-        {page.screenshotUrl ? (
-          <img src={page.screenshotUrl} alt={`Screenshot of ${page.path}`} style={{width:"100%",display:"block"}}/>
+        {screenshotUrl && !imgFailed ? (
+          <img src={screenshotUrl} alt={`Screenshot of ${page.path}`} onError={()=>setImgState((s)=>({...s,failed:true}))} style={{width:"100%",display:"block"}}/>
         ) : (
           <div style={{height:200,display:"flex",alignItems:"center",justifyContent:"center",background:T.bg1}}>
-            <span style={{fontSize:13,color:T.text2,fontFamily:T.body}}>No screenshot available</span>
+            <span style={{fontSize:13,color:T.text2,fontFamily:T.body}}>{screenshotUrl ? "Screenshot unavailable" : "No screenshot available"}</span>
           </div>
         )}
       </div>

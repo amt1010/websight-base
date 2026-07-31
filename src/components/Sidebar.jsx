@@ -7,7 +7,7 @@ const NAV=[
   {id:"apis",icon:"⊕",label:"APIs"},{id:"export",icon:"↓",label:"Export"},
 ];
 
-export function Sidebar({tab,setTab,projects,access,currentCrawlId}){
+export function Sidebar({tab,setTab,projects,access,currentCrawlId,onLogout}){
   return(
     <div style={{width:200,background:T.bg1,borderRight:`1px solid ${T.border}`,display:"flex",flexDirection:"column",flexShrink:0,minHeight:620}}>
       <div style={{padding:"18px 16px 14px",borderBottom:`1px solid ${T.border}`}}>
@@ -45,6 +45,7 @@ export function Sidebar({tab,setTab,projects,access,currentCrawlId}){
           <div style={{height:3,background:"rgba(255,255,255,0.06)",borderRadius:2,marginTop:6}}><div style={{height:"100%",width:"30%",background:T.accent,borderRadius:2}}/></div>
         </div>
         <button style={{marginTop:10,width:"100%",padding:"7px",background:`rgba(${hex2rgb(T.accent)},0.15)`,border:`1px solid rgba(${hex2rgb(T.accent)},0.3)`,borderRadius:7,color:T.accent,fontSize:12,fontFamily:T.sans,fontWeight:500,cursor:"pointer"}}>Upgrade ↗</button>
+        <button onClick={()=>onLogout?.()} style={{marginTop:8,width:"100%",padding:"7px",background:"transparent",border:`1px solid ${T.border}`,borderRadius:7,color:T.text1,fontSize:12,fontFamily:T.sans,fontWeight:500,cursor:"pointer"}}>Log out</button>
       </div>
     </div>
   );

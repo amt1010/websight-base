@@ -24,6 +24,15 @@ export function getOrCreateGuestToken() {
   }
 }
 
+export function clearGuestToken() {
+  try {
+    window.localStorage.removeItem(GUEST_TOKEN_KEY);
+  } catch {
+    // ignore
+  }
+  memoryGuestToken = null;
+}
+
 export class ApiError extends Error {
   constructor(status, body) {
     super(body?.error || `Request failed with status ${status}`);

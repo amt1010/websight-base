@@ -5,10 +5,11 @@ import App from "./App";
 let mockIsSignedIn = false;
 const mockGetToken = vi.fn().mockResolvedValue("clerk-jwt-1");
 const mockOpenSignIn = vi.fn();
+const mockSignOut = vi.fn().mockResolvedValue();
 
 vi.mock("@clerk/clerk-react", () => ({
   useAuth: () => ({ isSignedIn: mockIsSignedIn, getToken: mockGetToken }),
-  useClerk: () => ({ openSignIn: mockOpenSignIn }),
+  useClerk: () => ({ openSignIn: mockOpenSignIn, signOut: mockSignOut }),
 }));
 
 vi.mock("./lib/auth", async () => {
@@ -51,6 +52,7 @@ describe("App", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     mockIsSignedIn = false;
+    mockSignOut.mockClear();
     fetchGuestInit.mockReset().mockResolvedValue({ guestToken: "guest-token-1", remainingScans: 1 });
     fetchMe.mockReset();
     createCrawl.mockReset();
@@ -81,6 +83,28 @@ describe("App", () => {
     render(<App />);
     fireEvent.click(screen.getByRole("button", { name: /continue as guest/i }));
     await vi.waitFor(() => expect(screen.getAllByText("example.com").length).toBeGreaterThan(0));
+  });
+
+  it("logs out a guest and returns to the home page", async () => {
+    render(<App />);
+    await continueAsGuest();
+    fireEvent.click(screen.getByText("Log out"));
+    await vi.waitFor(() => expect(screen.getByRole("button", { name: /continue as guest/i })).toBeInTheDocument());
+  });
+
+  it("signs out via Clerk and returns to the home page for a logged-in user", async () => {
+    mockIsSignedIn = true;
+    fetchMe.mockResolvedValue({
+      email: "a@b.com",
+      role: "user",
+      plan: { name: "Pro", tier: "paid", scanLimit: 50 },
+      remainingScans: 50,
+    });
+    listCrawls.mockResolvedValue({ crawls: [] });
+    render(<App />);
+    await vi.waitFor(() => screen.getByText("Log out"));
+    fireEvent.click(screen.getByText("Log out"));
+    expect(mockSignOut).toHaveBeenCalled();
   });
 
   it("switches tabs", async () => {

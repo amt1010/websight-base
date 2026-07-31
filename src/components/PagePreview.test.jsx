@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { PagePreview } from "./PagePreview";
 
 describe("PagePreview", () => {
@@ -35,6 +35,13 @@ describe("PagePreview", () => {
   it("shows 'no screenshot available' when screenshotUrl is null", () => {
     render(<PagePreview page={{ path: "/a", screenshotUrl: null, htmlUrl: null }} />);
     expect(screen.getByText("No screenshot available")).toBeInTheDocument();
+  });
+
+  it("falls back to 'Screenshot unavailable' when a present screenshotUrl fails to load", () => {
+    render(<PagePreview page={{ path: "/a", screenshotUrl: "https://r2.example/broken.png", htmlUrl: null }} />);
+    const img = screen.getByAltText("Screenshot of /a");
+    fireEvent.error(img);
+    expect(screen.getByText("Screenshot unavailable")).toBeInTheDocument();
   });
 
   it("shows 'no HTML captured' and skips fetching when htmlUrl is null", () => {
