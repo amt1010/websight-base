@@ -74,7 +74,7 @@ export function deriveLayers(html) {
 export const LAYER_DEFS = [
   { id: "visual", label: "Visual Render", hasContent: () => true },
   { id: "text", label: "Content / Text", hasContent: (d) => d.text.length > 0 },
-  { id: "html", label: "HTML / DOM", hasContent: (d) => d.rawHtml.length > 0 },
+  { id: "html", label: "HTML / DOM", hasContent: (d, page) => Boolean(page?.htmlUrl) },
   { id: "css", label: "CSS / Styles", hasContent: (d) => d.css.inline.length > 0 || d.css.linked.length > 0 },
   { id: "network", label: "Network / APIs", hasContent: (d) => d.resources.length > 0 },
   { id: "schema", label: "Data / Schema", hasContent: (d) => d.schema.jsonLd.length > 0 || d.schema.meta.length > 0 },

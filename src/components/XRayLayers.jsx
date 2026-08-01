@@ -126,7 +126,7 @@ const PANEL_COMPONENTS = {
 export function XRayLayers({ page }) {
   const { html, failed: htmlFailed } = useHtmlText(page?.htmlUrl ?? null);
   const derived = useMemo(() => deriveLayers(html), [html]);
-  const availableLayers = useMemo(() => LAYER_DEFS.filter((l) => l.hasContent(derived)), [derived]);
+  const availableLayers = useMemo(() => LAYER_DEFS.filter((l) => l.hasContent(derived, page)), [derived, page]);
   const [activeLayerId, setActiveLayerId] = useState("visual");
   const [exploded, setExploded] = useState(false);
 

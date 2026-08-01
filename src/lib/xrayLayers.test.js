@@ -66,7 +66,15 @@ describe("LAYER_DEFS", () => {
 
   it("visual is always available; the rest depend on derived content", () => {
     const empty = deriveLayers(null);
-    const availability = Object.fromEntries(LAYER_DEFS.map((l) => [l.id, l.hasContent(empty)]));
+    const availability = Object.fromEntries(LAYER_DEFS.map((l) => [l.id, l.hasContent(empty, { htmlUrl: null })]));
     expect(availability).toEqual({ visual: true, text: false, html: false, css: false, network: false, schema: false });
+  });
+
+  it("html is available whenever the page has an htmlUrl, even before its content has been derived", () => {
+    const empty = deriveLayers(null);
+    const availability = Object.fromEntries(
+      LAYER_DEFS.map((l) => [l.id, l.hasContent(empty, { htmlUrl: "https://x/a.html" })])
+    );
+    expect(availability).toEqual({ visual: true, text: false, html: true, css: false, network: false, schema: false });
   });
 });

@@ -25,11 +25,19 @@ describe("XRayLayers", () => {
     expect(screen.getByText("No preview available")).toBeInTheDocument();
   });
 
-  it("shows only the Visual Render toolbar entry before HTML loads", () => {
+  it("shows Visual Render and HTML / DOM before HTML content has finished loading, but not the derived layers", () => {
     fetch.mockResolvedValue({ ok: true, text: async () => HTML_WITH_ALL_LAYERS });
     render(<XRayLayers page={PAGE} />);
     expect(screen.getByRole("button", { name: "Visual Render" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "HTML / DOM" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "CSS / Styles" })).not.toBeInTheDocument();
+  });
+
+  it("shows only Visual Render when the page has no htmlUrl at all", () => {
+    render(<XRayLayers page={{ path: "/a", url: "https://x/a", screenshotUrl: "https://x/a.png", htmlUrl: null }} />);
+    expect(screen.getByRole("button", { name: "Visual Render" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "HTML / DOM" })).not.toBeInTheDocument();
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it("adds toolbar entries for every layer with content once HTML loads", async () => {
@@ -48,12 +56,14 @@ describe("XRayLayers", () => {
     expect(screen.getByText("Hello")).toBeInTheDocument();
   });
 
-  it("collapses to just Visual Render when the HTML fetch fails", async () => {
+  it("keeps HTML / DOM available with a fallback link when the HTML fetch fails, but hides the derived layers", async () => {
     fetch.mockRejectedValue(new Error("network error"));
     render(<XRayLayers page={PAGE} />);
     await screen.findByAltText("Screenshot of /a");
     expect(screen.getByRole("button", { name: "Visual Render" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "HTML / DOM" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "CSS / Styles" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "HTML / DOM" }));
+    expect(await screen.findByRole("link", { name: /view raw html/i })).toHaveAttribute("href", PAGE.htmlUrl);
   });
 
   it("falls back to 'no preview available' when both screenshot and html are missing", () => {
