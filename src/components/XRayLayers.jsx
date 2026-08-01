@@ -128,6 +128,7 @@ export function XRayLayers({ page }) {
   const derived = useMemo(() => deriveLayers(html), [html]);
   const availableLayers = useMemo(() => LAYER_DEFS.filter((l) => l.hasContent(derived)), [derived]);
   const [activeLayerId, setActiveLayerId] = useState("visual");
+  const [exploded, setExploded] = useState(false);
 
   const hasAnyPreview = Boolean(page?.screenshotUrl) || Boolean(page?.htmlUrl);
   if (!page || !hasAnyPreview) {
@@ -142,13 +143,24 @@ export function XRayLayers({ page }) {
   const activeLayer = availableLayers[activeIndex] ?? availableLayers[0];
   const ActivePanel = PANEL_COMPONENTS[activeLayer.id];
 
+  function selectLayer(id) {
+    setActiveLayerId(id);
+    setExploded(false);
+  }
+
+  function handleWheel(e) {
+    const dir = e.deltaY > 0 ? 1 : -1;
+    const nextIndex = Math.min(availableLayers.length - 1, Math.max(0, activeIndex + dir));
+    setActiveLayerId(availableLayers[nextIndex].id);
+  }
+
   return (
-    <div data-testid="xray-layers-viewport" style={{display:"flex",flexDirection:"column",gap:12}}>
-      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+    <div data-testid="xray-layers-viewport" onWheel={handleWheel} style={{display:"flex",flexDirection:"column",gap:12}}>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
         {availableLayers.map((layer) => (
           <button
             key={layer.id}
-            onClick={() => setActiveLayerId(layer.id)}
+            onClick={() => selectLayer(layer.id)}
             style={{
               padding:"6px 12px",borderRadius:8,fontSize:12,fontFamily:T.sans,cursor:"pointer",
               border:`1px solid ${layer.id===activeLayer.id?T.accent:T.border}`,
@@ -157,8 +169,38 @@ export function XRayLayers({ page }) {
             }}
           >{layer.label}</button>
         ))}
+        <button
+          onClick={() => setExploded((v) => !v)}
+          style={{marginLeft:"auto",padding:"6px 12px",borderRadius:8,fontSize:12,fontFamily:T.sans,cursor:"pointer",border:`1px solid ${T.border}`,background:T.bg2,color:T.text1}}
+        >{exploded ? "Collapse" : "Explode"}</button>
       </div>
-      <ActivePanel page={page} derived={derived} html={html} htmlFailed={htmlFailed}/>
+      {exploded ? (
+        <div style={{position:"relative",height:340,perspective:1400}}>
+          {availableLayers.map((layer, i) => {
+            const Panel = PANEL_COMPONENTS[layer.id];
+            const depth = availableLayers.length - 1 - i;
+            return (
+              <div
+                key={layer.id}
+                data-testid={`xray-layer-${layer.id}`}
+                onClick={() => selectLayer(layer.id)}
+                style={{
+                  position:"absolute",inset:0,cursor:"pointer",
+                  transform:`rotateX(6deg) rotateY(-10deg) translateZ(${-depth*40}px) translateX(${depth*24}px)`,
+                  opacity:1-depth*0.12,
+                  zIndex:availableLayers.length-depth,
+                  transition:"transform .2s ease, opacity .2s ease",
+                }}
+              >
+                <div style={{fontSize:10,color:T.text2,fontFamily:T.sans,marginBottom:4}}>{layer.label}</div>
+                <div style={{maxHeight:260,overflow:"hidden"}}><Panel page={page} derived={derived} html={html} htmlFailed={htmlFailed}/></div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <ActivePanel page={page} derived={derived} html={html} htmlFailed={htmlFailed}/>
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import { XRayLayers } from "./XRayLayers";
 
 const HTML_WITH_ALL_LAYERS = `<html><head>
@@ -60,5 +60,40 @@ describe("XRayLayers", () => {
     render(<XRayLayers page={{ path: "/a", url: "https://x/a", screenshotUrl: null, htmlUrl: null }} />);
     expect(screen.getByText("No preview available")).toBeInTheDocument();
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("wheel down moves to the next available layer", async () => {
+    fetch.mockResolvedValue({ ok: true, text: async () => HTML_WITH_ALL_LAYERS });
+    render(<XRayLayers page={PAGE} />);
+    await screen.findByRole("button", { name: "Content / Text" });
+    fireEvent.wheel(screen.getByTestId("xray-layers-viewport"), { deltaY: 100 });
+    expect(screen.getByText("Hello")).toBeInTheDocument();
+  });
+
+  it("wheel up does not move before the first layer", async () => {
+    fetch.mockResolvedValue({ ok: true, text: async () => HTML_WITH_ALL_LAYERS });
+    render(<XRayLayers page={PAGE} />);
+    await screen.findByRole("button", { name: "Content / Text" });
+    fireEvent.wheel(screen.getByTestId("xray-layers-viewport"), { deltaY: -100 });
+    expect(screen.getByAltText("Screenshot of /a")).toBeInTheDocument();
+  });
+
+  it("explode toggle renders every available layer at once", async () => {
+    fetch.mockResolvedValue({ ok: true, text: async () => HTML_WITH_ALL_LAYERS });
+    render(<XRayLayers page={PAGE} />);
+    await screen.findByRole("button", { name: "Content / Text" });
+    fireEvent.click(screen.getByRole("button", { name: "Explode" }));
+    expect(within(screen.getByTestId("xray-layer-visual")).getByAltText("Screenshot of /a")).toBeInTheDocument();
+    expect(within(screen.getByTestId("xray-layer-text")).getByText("Hello")).toBeInTheDocument();
+  });
+
+  it("clicking a layer while exploded activates it and exits explode mode", async () => {
+    fetch.mockResolvedValue({ ok: true, text: async () => HTML_WITH_ALL_LAYERS });
+    render(<XRayLayers page={PAGE} />);
+    await screen.findByRole("button", { name: "Content / Text" });
+    fireEvent.click(screen.getByRole("button", { name: "Explode" }));
+    fireEvent.click(screen.getByTestId("xray-layer-text"));
+    expect(screen.getByRole("button", { name: "Explode" })).toBeInTheDocument();
+    expect(screen.getByText("Hello")).toBeInTheDocument();
   });
 });
