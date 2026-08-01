@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { T } from "../lib/theme";
-import { PagePreview } from "./PagePreview";
+import { XRayLayers } from "./XRayLayers";
 
 export function XRayTab({ pages }) {
   const okPages = (pages ?? []).filter((p) => p.status === "ok");
@@ -23,7 +23,7 @@ export function XRayTab({ pages }) {
           {okPages.map((p)=>(<option key={p.url} value={p.url}>{p.path}</option>))}
         </select>
       </div>
-      <PagePreview page={selected}/>
+      <XRayLayers key={selected?.url} page={selected}/>
     </div>
   );
 }

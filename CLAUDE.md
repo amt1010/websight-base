@@ -53,8 +53,9 @@ The app is componentized under `src/`:
   sitemap `nodes`, page `templates` (each with an X-ray `layers` array),
   detected `apis`, etc. This is the thing a real backend will eventually
   replace.
-- `src/lib/xrayContent.jsx` — the fake per-page-type visual/HTML/CSS/API/data
-  layer content used by the X-Ray tab.
+- `src/lib/xrayLayers.js` — `deriveLayers(html)` + `LAYER_DEFS`: derives the
+  X-Ray tab's Content/Text, CSS/Styles, Network/APIs, and Data/Schema layers
+  client-side from a page's already-captured HTML (no new backend call).
 - `src/lib/auth.js` — plain functions for the `websight-data` API: guest
   token creation, `fetchGuestInit`/`fetchMe`/`consumeScan`. No component
   calls `fetch` directly; everything goes through this module.
@@ -63,7 +64,9 @@ The app is componentized under `src/`:
 - `src/components/ui/` — shared atoms (`Badge`, `Chip`, `UpsellNotice`).
 - `src/components/HomePage.jsx` — the pre-dashboard screen: Clerk login
   entry point and guest-mode entry point.
-- `src/components/` — `Sidebar`, `MindMap`, `XRayTab`, `Fonts`.
+- `src/components/` — `Sidebar`, `MindMap`, `XRayTab`, `XRayLayers` (the
+  X-Ray tab's layer toolbar/exploded-stack view, built on `xrayLayers.js`),
+  `Fonts`.
 - `src/components/tabs/` — one file per dashboard tab: `OverviewTab`,
   `SitemapTab`, `TemplatesTab` (+ `StackedPreview`), `APIsTab`, `ExportTab`.
 - `src/App.jsx` — the root component: `view` (home/dashboard) and `access`
