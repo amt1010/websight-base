@@ -1,3 +1,180 @@
+# Issue #12 URL Routing Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Give every dashboard section its own real, bookmarkable URL (`/overview`, `/sitemap`, `/templates`, `/x-ray`, `/apis`, `/export`) with working browser back/forward, using `react-router-dom`.
+
+**Architecture:** `App.jsx`'s default export becomes a thin `<BrowserRouter>` wrapper around a new `AppShell` component (all of today's logic, minus `view`/`tab` local state). A new `DashboardRoute` component (matched by the `/:slug` route) resolves the slug to a tab id via `src/lib/routes.js` and renders exactly what today's dashboard branch renders. Navigation between tabs/pages becomes `navigate(...)` calls at the same three call sites that today call `setView(...)`.
+
+**Tech Stack:** React 19, `react-router-dom` (new dependency), Vitest + React Testing Library (existing).
+
+Design doc: `docs/superpowers/specs/2026-08-02-issue12-url-routing-design.md`
+
+## Global Constraints
+
+- No change to `Sidebar.jsx`'s prop contract — it keeps taking `tab`/`setTab`.
+- No change to `main.jsx` — `BrowserRouter` lives inside `App.jsx` so `App.test.jsx` (which renders `<App/>` directly) needs no router setup of its own.
+- Navigation is imperative (`navigate(...)` at specific call sites), never a continuously-re-evaluated redirect based on `isSignedIn`/`access` — see the design doc's race-condition reasoning. Do not "simplify" this into a declarative `<Navigate>` on the `/` route.
+- Every existing `App.test.jsx` test must keep passing unmodified — this refactor is behavior-preserving for everything already covered.
+
+---
+
+### Task 1: `src/lib/routes.js` — slug/tab-id mapping
+
+**Files:**
+- Create: `src/lib/routes.js`
+- Create: `src/lib/routes.test.js`
+- Modify: `package.json`, `package-lock.json` (via `npm install`)
+
+**Interfaces:**
+- Consumes: nothing new.
+- Produces: `TAB_SLUGS: {overview,sitemap,templates,xray,apis,export} → slug`, `SLUG_TABS` (inverse), `DEFAULT_TAB = "overview"` — consumed by Task 2's `App.jsx`.
+
+- [ ] **Step 1: Install the new dependency**
+
+Run: `npm install react-router-dom`
+Expected: adds `react-router-dom` to `dependencies` in `package.json` and updates `package-lock.json`.
+
+- [ ] **Step 2: Write the failing test**
+
+Create `src/lib/routes.test.js`:
+
+```js
+import { describe, it, expect } from "vitest";
+import { TAB_SLUGS, SLUG_TABS, DEFAULT_TAB } from "./routes";
+
+describe("routes", () => {
+  it("maps every tab id to a URL slug, with xray mapped to the readable x-ray", () => {
+    expect(TAB_SLUGS).toEqual({
+      overview: "overview",
+      sitemap: "sitemap",
+      templates: "templates",
+      xray: "x-ray",
+      apis: "apis",
+      export: "export",
+    });
+  });
+
+  it("SLUG_TABS is the exact inverse of TAB_SLUGS", () => {
+    for (const [id, slug] of Object.entries(TAB_SLUGS)) {
+      expect(SLUG_TABS[slug]).toBe(id);
+    }
+    expect(Object.keys(SLUG_TABS)).toHaveLength(Object.keys(TAB_SLUGS).length);
+  });
+
+  it("DEFAULT_TAB is a valid tab id", () => {
+    expect(TAB_SLUGS).toHaveProperty(DEFAULT_TAB);
+  });
+});
+```
+
+- [ ] **Step 3: Run to verify it fails**
+
+Run: `npm test -- src/lib/routes.test.js`
+Expected: FAIL — `./routes` module doesn't exist yet.
+
+- [ ] **Step 4: Implement**
+
+Create `src/lib/routes.js`:
+
+```js
+export const TAB_SLUGS = {
+  overview: "overview",
+  sitemap: "sitemap",
+  templates: "templates",
+  xray: "x-ray",
+  apis: "apis",
+  export: "export",
+};
+
+export const SLUG_TABS = Object.fromEntries(Object.entries(TAB_SLUGS).map(([id, slug]) => [slug, id]));
+
+export const DEFAULT_TAB = "overview";
+```
+
+- [ ] **Step 5: Run to verify it passes**
+
+Run: `npm test -- src/lib/routes.test.js`
+Expected: PASS.
+
+- [ ] **Step 6: Lint and commit**
+
+Run: `npm run lint` — expect no errors.
+
+```bash
+git add package.json package-lock.json src/lib/routes.js src/lib/routes.test.js
+git commit -m "feat: add react-router-dom and tab-slug route mapping"
+```
+
+---
+
+### Task 2: Route `App.jsx` and add new routing tests
+
+**Files:**
+- Modify: `src/App.jsx`
+- Modify: `src/App.test.jsx`
+
+**Interfaces:**
+- Consumes: `TAB_SLUGS`/`SLUG_TABS`/`DEFAULT_TAB` (Task 1).
+- Produces: nothing consumed by later tasks — this is the last task in this plan.
+
+- [ ] **Step 1: Add the new routing tests to `src/App.test.jsx`**
+
+First, add a pathname reset to the existing `beforeEach` so this task's `pushState` calls don't leak into other tests. Change:
+
+```js
+  beforeEach(() => {
+    vi.useFakeTimers();
+```
+
+to:
+
+```js
+  beforeEach(() => {
+    window.history.pushState({}, "", "/");
+    vi.useFakeTimers();
+```
+
+Then add these three tests at the end of the `describe("App", ...)` block, after the last existing `it(...)`:
+
+```js
+  it("updates the URL when switching tabs", async () => {
+    render(<App />);
+    await continueAsGuest();
+    fireEvent.click(screen.getByText("Sitemap"));
+    expect(window.location.pathname).toBe("/sitemap");
+  });
+
+  it("redirects a dashboard URL to home when there is no active session", () => {
+    window.history.pushState({}, "", "/templates");
+    render(<App />);
+    expect(screen.getByRole("button", { name: /continue as guest/i })).toBeInTheDocument();
+  });
+
+  it("stays on a deep-linked dashboard path for an already-signed-in user instead of bouncing to overview", async () => {
+    mockIsSignedIn = true;
+    fetchMe.mockResolvedValue({
+      email: "a@b.com",
+      role: "user",
+      plan: { name: "Pro", tier: "paid", scanLimit: 50 },
+      remainingScans: 50,
+    });
+    listCrawls.mockResolvedValue({ crawls: [] });
+    window.history.pushState({}, "", "/apis");
+    render(<App />);
+    await vi.waitFor(() => screen.getByText("Log out"));
+    expect(window.location.pathname).toBe("/apis");
+  });
+```
+
+- [ ] **Step 2: Run to verify the new tests fail**
+
+Run: `npm test -- src/App.test.jsx`
+Expected: the 3 new tests FAIL (no routing exists yet — `window.location.pathname` never changes, and a `pushState`-simulated deep link isn't understood by the unroute-d app, which always renders based on local `view`/`tab` state instead of the URL). All pre-existing tests should still PASS at this point (only new tests added so far, nothing in `App.jsx` changed yet).
+
+- [ ] **Step 3: Replace the full contents of `src/App.jsx`**
+
+```jsx
 import { useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation, useParams } from "react-router-dom";
 import { useAuth, useClerk } from "@clerk/clerk-react";
@@ -291,3 +468,71 @@ export default function App(){
     </BrowserRouter>
   );
 }
+```
+
+Note: `case"export": return<ExportTab/>;` is deliberately left exactly as it is today (no `data` prop) — threading `data` into `ExportTab` is issue #19's job, a separate plan, to keep this plan's diff scoped to routing only.
+
+- [ ] **Step 4: Run the full test suite**
+
+Run: `npm test`
+Expected: ALL tests pass — every pre-existing `App.test.jsx` test (unmodified, per the Global Constraints) plus the 3 new tests from Step 1, plus everything from Task 1.
+
+- [ ] **Step 5: Lint and build**
+
+Run: `npm run lint` — expect no errors.
+Run: `npm run build` — expect a clean production build (catches any issue the jsdom test environment might not, e.g. `react-router-dom`'s ESM/CJS interop with Vite).
+
+- [ ] **Step 6: Update `CLAUDE.md`**
+
+Add `react-router-dom` to the Stack section. Find:
+
+```
+- Plain CSS + inline style objects. No Tailwind, no CSS-in-JS library.
+- npm (`package-lock.json` is committed)
+```
+
+Replace with:
+
+```
+- `react-router-dom` for client-side routing — each dashboard section is a
+  real URL (`/overview`, `/sitemap`, `/templates`, `/x-ray`, `/apis`,
+  `/export`); `src/lib/routes.js` holds the tab-id ↔ URL-slug mapping.
+- Plain CSS + inline style objects. No Tailwind, no CSS-in-JS library.
+- npm (`package-lock.json` is committed)
+```
+
+Also update the architecture bullet listing `src/App.jsx`'s responsibilities. Find:
+
+```
+- `src/App.jsx` — the root component: `view` (home/dashboard) and `access`
+  (tier/quota) state, resolving access from either guest-mode or a Clerk
+  login, tab switching and gating, the fake analyze/loading sequence, and
+  composing the pieces above.
+```
+
+Replace with:
+
+```
+- `src/App.jsx` — `App` mounts `BrowserRouter` around `AppShell`, which
+  holds `access` (tier/quota) state, resolving access from either
+  guest-mode or a Clerk login, real analyze/crawl-polling state, and
+  composing the pieces above. `DashboardRoute` (in the same file) resolves
+  the `/:slug` URL param to a tab id via `src/lib/routes.js` and renders
+  the gated tab content; navigation is real browser URL navigation, not
+  local `tab` state.
+```
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add src/App.jsx src/App.test.jsx CLAUDE.md
+git commit -m "feat: give every dashboard section a real URL via react-router-dom"
+```
+
+---
+
+## Self-Review Notes
+
+- **Spec coverage:** the slug table (Task 1) and every architectural piece from the design doc — `BrowserRouter`/`AppShell` split, imperative-only navigation at the 3 original `setView` call sites, the `/` deep-link guard, the `isDashboard`-boolean-not-raw-pathname fix for the refresh-projects effect, `Sidebar` left untouched — are all in Task 2's single `App.jsx` replacement. The known accepted limitation (no continuous re-redirect from `/`) is preserved by construction (no such logic was added). Out-of-scope items (crawl-id in URL, `Sidebar` changes) correctly have no task.
+- **Placeholder scan:** every step has literal code or literal commands; no "add appropriate handling" language.
+- **Type/name consistency:** `tabContent` changes from a no-arg closure to `tabContent(tab)`, and every call site (`DashboardRoute`'s `tabContent(resolvedTab)`) matches. `SLUG_TABS`/`TAB_SLUGS`/`DEFAULT_TAB` names and shapes from Task 1 are used identically in Task 2. `handleSetTab` keeps its existing name and its existing responsibility (clear `analyzeError`) while changing its second action from `setTab(...)` to `navigate(...)`.

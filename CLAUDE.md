@@ -28,6 +28,9 @@ exists beyond what's in `src/lib/auth.js`.
   for the required `VITE_CLERK_PUBLISHABLE_KEY` / `VITE_API_BASE_URL`.
 - ESLint 10, flat config in `eslint.config.js` (`react-hooks`, `react-refresh`)
 - Vitest + React Testing Library + jsdom for tests
+- `react-router-dom` for client-side routing — each dashboard section is a
+  real URL (`/overview`, `/sitemap`, `/templates`, `/x-ray`, `/apis`,
+  `/export`); `src/lib/routes.js` holds the tab-id ↔ URL-slug mapping.
 - Plain CSS + inline style objects. No Tailwind, no CSS-in-JS library.
 - npm (`package-lock.json` is committed)
 
@@ -69,10 +72,13 @@ The app is componentized under `src/`:
   `Fonts`.
 - `src/components/tabs/` — one file per dashboard tab: `OverviewTab`,
   `SitemapTab`, `TemplatesTab` (+ `StackedPreview`), `APIsTab`, `ExportTab`.
-- `src/App.jsx` — the root component: `view` (home/dashboard) and `access`
-  (tier/quota) state, resolving access from either guest-mode or a Clerk
-  login, tab switching and gating, the fake analyze/loading sequence, and
-  composing the pieces above.
+- `src/App.jsx` — `App` mounts `BrowserRouter` around `AppShell`, which
+  holds `access` (tier/quota) state, resolving access from either
+  guest-mode or a Clerk login, real analyze/crawl-polling state, and
+  composing the pieces above. `DashboardRoute` (in the same file) resolves
+  the `/:slug` URL param to a tab id via `src/lib/routes.js` and renders
+  the gated tab content; navigation is real browser URL navigation, not
+  local `tab` state.
 - `*.test.jsx` files sit next to the component they test (e.g.
   `src/components/Sidebar.test.jsx`). `src/test/setup.js` wires up
   `@testing-library/jest-dom` matchers and RTL's `cleanup` between tests.
