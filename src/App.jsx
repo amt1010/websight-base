@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation, useParams } from "react-router-dom";
 import { useAuth, useClerk } from "@clerk/clerk-react";
 import { T } from "./lib/theme";
 import { RESTRICTED_TABS } from "./lib/access";
+import { TAB_SLUGS, SLUG_TABS, DEFAULT_TAB } from "./lib/routes";
 import { getOrCreateGuestToken, clearGuestToken, fetchMe, ApiError } from "./lib/auth";
 import { createCrawl, getCrawl, listCrawls } from "./lib/crawls";
 import { mapMetrics, buildSitemapNodes, mapTemplates, mapIntegrations, mapProjects } from "./lib/crawlMapper";
@@ -19,12 +21,39 @@ import { ExportTab } from "./components/tabs/ExportTab";
 const INITIAL_ACCESS = { tier: null, planName: "", scanLimit: 0, remainingScans: 0, loading: false, error: null };
 const POLL_INTERVAL_MS = 2000;
 const MAX_POLL_FAILURES = 3;
+const GLOBAL_STYLE = `@keyframes spin{to{transform:rotate(360deg)}}*{box-sizing:border-box;margin:0;padding:0}::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(99,102,241,0.3);border-radius:3px}`;
 
-export default function App(){
-  const[view,setView]=useState("home");
+function DashboardRoute({isSignedIn,access,tabContent,setTab,projects,crawlId,onLogout,url,setUrl,isBusy,handleAnalyzeClick}){
+  const{slug}=useParams();
+  const resolvedTab=SLUG_TABS[slug];
+  if(!resolvedTab) return<Navigate to="/" replace/>;
+  if(!isSignedIn&&!access.tier) return<Navigate to="/" replace/>;
+  return(
+    <><Fonts/>
+      <style>{GLOBAL_STYLE}</style>
+      <div style={{display:"flex",flexDirection:"column",minHeight:620,background:T.bg0,color:T.text0,fontFamily:T.body}}>
+        {access.error&&(
+          <div style={{background:T.bg2,borderBottom:`1px solid ${T.border}`,padding:"8px 20px",fontSize:12,color:T.amber,fontFamily:T.body}}>{access.error}</div>
+        )}
+        <div style={{display:"flex",flex:1}}>
+          <Sidebar tab={resolvedTab} setTab={setTab} projects={projects} access={access} currentCrawlId={crawlId} onLogout={onLogout}/>
+          <div style={{flex:1,display:"flex",flexDirection:"column",minWidth:0}}>
+            <div style={{background:T.bg1,borderBottom:`1px solid ${T.border}`,padding:"10px 20px",display:"flex",gap:10,alignItems:"center"}}>
+              <span style={{fontSize:14,color:T.text2}}>🌐</span>
+              <input value={url} onChange={e=>setUrl(e.target.value)} placeholder="https://example.com" style={{flex:1,background:T.bg2,border:`1px solid ${T.border}`,borderRadius:8,padding:"8px 14px",fontSize:13,color:T.text0,fontFamily:T.mono,outline:"none"}}/>
+              <button onClick={handleAnalyzeClick} disabled={isBusy} style={{padding:"8px 22px",background:`linear-gradient(135deg,${T.accent},${T.violet})`,border:"none",borderRadius:8,color:"#fff",fontSize:13,fontFamily:T.sans,fontWeight:600,cursor:isBusy?"default":"pointer",whiteSpace:"nowrap",letterSpacing:".2px",opacity:isBusy?0.6:1}}>Analyze ↗</button>
+            </div>
+            <div style={{flex:1,overflowY:"auto",padding:"18px 20px"}}>{tabContent(resolvedTab)}</div>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function AppShell(){
   const[access,setAccess]=useState(INITIAL_ACCESS);
   const[analyzeError,setAnalyzeError]=useState(null);
-  const[tab,setTab]=useState("overview");
   const[url,setUrl]=useState("");
   const[projects,setProjects]=useState([]);
   const[crawlId,setCrawlId]=useState(null);
@@ -33,6 +62,9 @@ export default function App(){
   const[crawlError,setCrawlError]=useState(null);
   const{isSignedIn,getToken}=useAuth();
   const{signOut}=useClerk();
+  const navigate=useNavigate();
+  const location=useLocation();
+  const isDashboard=location.pathname!=="/";
 
   async function resolveIdentity(){
     if(isSignedIn) return { clerkToken: await getToken() };
@@ -41,9 +73,9 @@ export default function App(){
 
   useEffect(()=>{
     if(!isSignedIn)return;
+    if(location.pathname==="/") navigate(`/${TAB_SLUGS[DEFAULT_TAB]}`,{replace:true});
     let cancelled=false;
     (async()=>{
-      setView("dashboard");
       setAccess(a=>({...a,loading:true,error:null}));
       try{
         const token=await getToken();
@@ -56,6 +88,7 @@ export default function App(){
       }
     })();
     return()=>{cancelled=true;};
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   },[isSignedIn,getToken]);
 
   async function refreshProjects(){
@@ -71,7 +104,7 @@ export default function App(){
   }
 
   useEffect(()=>{
-    if(view!=="dashboard")return;
+    if(!isDashboard)return;
     let cancelled=false;
     (async()=>{
       const result=await refreshProjects();
@@ -81,7 +114,7 @@ export default function App(){
     })();
     return()=>{cancelled=true;};
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[view]);
+  },[isDashboard]);
 
   useEffect(()=>{
     if(!crawlId)return;
@@ -126,7 +159,7 @@ export default function App(){
 
   function handleGuestAccess(nextAccess){
     setAccess(nextAccess);
-    setView("dashboard");
+    navigate(`/${TAB_SLUGS[DEFAULT_TAB]}`);
   }
 
   async function handleLogout(){
@@ -135,10 +168,9 @@ export default function App(){
     }else{
       clearGuestToken();
     }
-    setView("home");
+    navigate("/");
     setAccess(INITIAL_ACCESS);
     setAnalyzeError(null);
-    setTab("overview");
     setUrl("");
     setProjects([]);
     setCrawlId(null);
@@ -147,9 +179,9 @@ export default function App(){
     setCrawlError(null);
   }
 
-  function handleSetTab(nextTab){
+  function handleSetTab(nextTabId){
     setAnalyzeError(null);
-    setTab(nextTab);
+    navigate(`/${TAB_SLUGS[nextTabId]}`);
   }
 
   async function handleAnalyzeClick(){
@@ -175,7 +207,7 @@ export default function App(){
   const isPaid=access.tier==="paid";
   const isBusy=crawlStatus==="queued"||crawlStatus==="running";
 
-  const tabContent=()=>{
+  const tabContent=(tab)=>{
     if(isBusy)return(
       <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:400,gap:20}}>
         <div style={{width:36,height:36,border:`2px solid ${T.border}`,borderTopColor:T.accent,borderRadius:"50%",animation:"spin .8s linear infinite"}}/>
@@ -229,29 +261,33 @@ export default function App(){
     }
   };
 
-  if(view==="home"){
-    return(<><Fonts/><HomePage onGuestAccess={handleGuestAccess}/></>);
-  }
-
   return(
-    <><Fonts/>
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}*{box-sizing:border-box;margin:0;padding:0}::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(99,102,241,0.3);border-radius:3px}`}</style>
-      <div style={{display:"flex",flexDirection:"column",minHeight:620,background:T.bg0,color:T.text0,fontFamily:T.body}}>
-        {access.error&&(
-          <div style={{background:T.bg2,borderBottom:`1px solid ${T.border}`,padding:"8px 20px",fontSize:12,color:T.amber,fontFamily:T.body}}>{access.error}</div>
-        )}
-        <div style={{display:"flex",flex:1}}>
-          <Sidebar tab={tab} setTab={handleSetTab} projects={projects} access={access} currentCrawlId={crawlId} onLogout={handleLogout}/>
-          <div style={{flex:1,display:"flex",flexDirection:"column",minWidth:0}}>
-            <div style={{background:T.bg1,borderBottom:`1px solid ${T.border}`,padding:"10px 20px",display:"flex",gap:10,alignItems:"center"}}>
-              <span style={{fontSize:14,color:T.text2}}>🌐</span>
-              <input value={url} onChange={e=>setUrl(e.target.value)} placeholder="https://example.com" style={{flex:1,background:T.bg2,border:`1px solid ${T.border}`,borderRadius:8,padding:"8px 14px",fontSize:13,color:T.text0,fontFamily:T.mono,outline:"none"}}/>
-              <button onClick={handleAnalyzeClick} disabled={isBusy} style={{padding:"8px 22px",background:`linear-gradient(135deg,${T.accent},${T.violet})`,border:"none",borderRadius:8,color:"#fff",fontSize:13,fontFamily:T.sans,fontWeight:600,cursor:isBusy?"default":"pointer",whiteSpace:"nowrap",letterSpacing:".2px",opacity:isBusy?0.6:1}}>Analyze ↗</button>
-            </div>
-            <div style={{flex:1,overflowY:"auto",padding:"18px 20px"}}>{tabContent()}</div>
-          </div>
-        </div>
-      </div>
-    </>
+    <Routes>
+      <Route path="/" element={<><Fonts/><HomePage onGuestAccess={handleGuestAccess}/></>}/>
+      <Route path="/:slug" element={
+        <DashboardRoute
+          isSignedIn={isSignedIn}
+          access={access}
+          tabContent={tabContent}
+          setTab={handleSetTab}
+          projects={projects}
+          crawlId={crawlId}
+          onLogout={handleLogout}
+          url={url}
+          setUrl={setUrl}
+          isBusy={isBusy}
+          handleAnalyzeClick={handleAnalyzeClick}
+        />
+      }/>
+      <Route path="*" element={<Navigate to="/" replace/>}/>
+    </Routes>
+  );
+}
+
+export default function App(){
+  return(
+    <BrowserRouter>
+      <AppShell/>
+    </BrowserRouter>
   );
 }

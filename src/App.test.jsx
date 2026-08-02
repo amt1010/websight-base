@@ -50,6 +50,7 @@ async function continueAsGuest() {
 
 describe("App", () => {
   beforeEach(() => {
+    window.history.pushState({}, "", "/");
     vi.useFakeTimers();
     mockIsSignedIn = false;
     mockSignOut.mockClear();
@@ -183,5 +184,33 @@ describe("App", () => {
     fireEvent.change(screen.getByPlaceholderText("https://example.com"), { target: { value: "example.com" } });
     fireEvent.click(screen.getByRole("button", { name: /analyze/i }));
     await vi.waitFor(() => expect(screen.getByText("robots.txt disallowed all crawling")).toBeInTheDocument());
+  });
+
+  it("updates the URL when switching tabs", async () => {
+    render(<App />);
+    await continueAsGuest();
+    fireEvent.click(screen.getByText("Sitemap"));
+    expect(window.location.pathname).toBe("/sitemap");
+  });
+
+  it("redirects a dashboard URL to home when there is no active session", () => {
+    window.history.pushState({}, "", "/templates");
+    render(<App />);
+    expect(screen.getByRole("button", { name: /continue as guest/i })).toBeInTheDocument();
+  });
+
+  it("stays on a deep-linked dashboard path for an already-signed-in user instead of bouncing to overview", async () => {
+    mockIsSignedIn = true;
+    fetchMe.mockResolvedValue({
+      email: "a@b.com",
+      role: "user",
+      plan: { name: "Pro", tier: "paid", scanLimit: 50 },
+      remainingScans: 50,
+    });
+    listCrawls.mockResolvedValue({ crawls: [] });
+    window.history.pushState({}, "", "/apis");
+    render(<App />);
+    await vi.waitFor(() => screen.getByText("Log out"));
+    expect(window.location.pathname).toBe("/apis");
   });
 });
