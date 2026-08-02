@@ -256,7 +256,7 @@ function AppShell(){
       case"templates": return<TemplatesTab data={data} pages={data.pages}/>;
       case"xray": return<XRayTab pages={data.pages}/>;
       case"apis": return<APIsTab data={data}/>;
-      case"export": return<ExportTab/>;
+      case"export": return<ExportTab data={data}/>;
       default: return<OverviewTab data={data}/>;
     }
   };
